@@ -3,6 +3,7 @@ import * as THREE from 'three';
 export interface StarfieldRig {
   group: THREE.Group;
   update: (elapsed: number, reducedMotion: boolean) => void;
+  setPixelRatio: (pixelRatio: number) => void;
   dispose: () => void;
 }
 
@@ -159,6 +160,10 @@ export function createStarfield(starCount = 1100): StarfieldRig {
       const t = reducedMotion ? 0 : elapsed;
       material.uniforms.uTime.value = t;
       moteMat.uniforms.uTime.value = t * 1.15;
+    },
+    setPixelRatio(pixelRatio: number) {
+      material.uniforms.uPixelRatio.value = pixelRatio;
+      moteMat.uniforms.uPixelRatio.value = pixelRatio;
     },
     dispose() {
       geometry.dispose();

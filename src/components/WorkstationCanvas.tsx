@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { createStarfield } from '../three/starfieldBuilder';
@@ -144,21 +145,27 @@ export const WorkstationCanvas: React.FC = () => {
     controls.minAzimuthAngle = -Math.PI / 4.5;
     controls.maxAzimuthAngle = Math.PI / 4.5;
 
-    // Post-Processing (GPU only)
+    // Post-Processing: RenderPass -> UnrealBloomPass -> OutputPass (GPU only)
     let composer: EffectComposer | null = null;
     let bloomPass: UnrealBloomPass | null = null;
     if (!isSoftwareGl) {
       composer = new EffectComposer(renderer);
+      composer.setPixelRatio(pixelRatio);
+      composer.setSize(width, height);
+
       const renderPass = new RenderPass(scene, camera);
       composer.addPass(renderPass);
 
       bloomPass = new UnrealBloomPass(
         new THREE.Vector2(width, height),
-        0.42, // strength
-        0.35, // radius
-        0.84 // threshold
+        0.56, // strength for soft futuristic RGB glow
+        0.52, // radius for smooth atmospheric halo
+        0.72 // threshold targeting emissive RGB elements
       );
       composer.addPass(bloomPass);
+
+      const outputPass = new OutputPass();
+      composer.addPass(outputPass);
     }
 
     // Responsive Framing: Center-left on desktop via setViewOffset, centered on tablet/mobile
@@ -235,7 +242,9 @@ export const WorkstationCanvas: React.FC = () => {
 
       renderer.setPixelRatio(pr);
       renderer.setSize(newW, newH);
+      starfield.setPixelRatio(pr);
       if (composer) {
+        composer.setPixelRatio(pr);
         composer.setSize(newW, newH);
       }
       if (bloomPass) {
