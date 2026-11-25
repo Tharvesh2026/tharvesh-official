@@ -388,54 +388,72 @@ export function createWorkstation(
   monGroup.position.set(0, 0.79, 0.01);
   monGroup.rotation.x = -0.03;
 
-  const monW = 2.28;
+  const monW = 2.34;
   const monH = 1.06;
   const monD = 0.05;
+  const curveFactor = 0.082;
+  const bendGeometry = (geo: THREE.BufferGeometry) => {
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const vx = pos.getX(i);
+      pos.setZ(i, pos.getZ(i) + vx * vx * curveFactor);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    return geo;
+  };
 
-  // Rear housing
-  const monBackGeo = track(new THREE.BoxGeometry(monW, monH, monD));
+  // Curved rear housing
+  const monBackGeo = track(bendGeometry(new THREE.BoxGeometry(monW, monH, monD, 24, 1, 1)));
   const monBack = new THREE.Mesh(monBackGeo, matteChassisMat);
   monBack.castShadow = true;
   monBack.receiveShadow = true;
   monGroup.add(monBack);
 
-  // Rear subtle purple/cyan RGB bias light ring on back of monitor
-  const biasGeo = track(new THREE.BoxGeometry(monW * 0.72, 0.025, 0.015));
+  // Rear subtle purple/cyan RGB bias light bar on back of curved monitor
+  const biasGeo = track(bendGeometry(new THREE.BoxGeometry(monW * 0.72, 0.025, 0.015, 16, 1, 1)));
   const biasBar = new THREE.Mesh(biasGeo, rgbPurpleMat);
   biasBar.position.set(0, 0.18, -monD / 2 - 0.006);
   monGroup.add(biasBar);
 
-  // Thin outer bezel frame (4 strips)
+  // Thin curved outer bezel frame (4 strips)
   const bezelT = 0.028;
   const bezelBottom = 0.044;
   const bezelD = 0.018;
 
-  const topBezGeo = track(new THREE.BoxGeometry(monW, bezelT, bezelD));
+  const topBezGeo = track(bendGeometry(new THREE.BoxGeometry(monW, bezelT, bezelD, 24, 1, 1)));
   const topBez = new THREE.Mesh(topBezGeo, matteChassisMat);
   topBez.position.set(0, monH / 2 - bezelT / 2, monD / 2 + bezelD / 2);
   monGroup.add(topBez);
 
-  const botBezGeo = track(new THREE.BoxGeometry(monW, bezelBottom, bezelD));
+  const botBezGeo = track(bendGeometry(new THREE.BoxGeometry(monW, bezelBottom, bezelD, 24, 1, 1)));
   const botBez = new THREE.Mesh(botBezGeo, matteChassisMat);
   botBez.position.set(0, -monH / 2 + bezelBottom / 2, monD / 2 + bezelD / 2);
   monGroup.add(botBez);
 
   const sideBezGeo = track(new THREE.BoxGeometry(bezelT, monH, bezelD));
+  const edgeCurveZ = (monW / 2 - bezelT / 2) ** 2 * curveFactor;
   const leftBez = new THREE.Mesh(sideBezGeo, matteChassisMat);
-  leftBez.position.set(-monW / 2 + bezelT / 2, 0, monD / 2 + bezelD / 2);
+  leftBez.position.set(-monW / 2 + bezelT / 2, 0, monD / 2 + bezelD / 2 + edgeCurveZ);
+  leftBez.rotation.y = 0.18;
   monGroup.add(leftBez);
 
   const rightBez = new THREE.Mesh(sideBezGeo, matteChassisMat);
-  rightBez.position.set(monW / 2 - bezelT / 2, 0, monD / 2 + bezelD / 2);
+  rightBez.position.set(monW / 2 - bezelT / 2, 0, monD / 2 + bezelD / 2 + edgeCurveZ);
+  rightBez.rotation.y = -0.18;
   monGroup.add(rightBez);
 
   // Tiny monitor power LED on bottom right bezel
   const monPowerGeo = track(new THREE.BoxGeometry(0.024, 0.006, 0.006));
   const monPower = new THREE.Mesh(monPowerGeo, rgbCyanMat);
-  monPower.position.set(monW / 2 - 0.12, -monH / 2 + 0.02, monD / 2 + bezelD + 0.002);
+  monPower.position.set(
+    monW / 2 - 0.12,
+    -monH / 2 + 0.02,
+    monD / 2 + bezelD + 0.003 + (monW / 2 - 0.12) ** 2 * curveFactor
+  );
   monGroup.add(monPower);
 
-  // Live IDE Screen Plane
+  // Curved Live IDE Screen Plane
   const monitorHandle: MonitorTextureHandle = createMonitorEditorTexture(maxAnisotropy);
   track(monitorHandle.texture);
 
@@ -451,9 +469,9 @@ export function createWorkstation(
       metalness: 0.05,
     })
   );
-  const screenGeo = track(new THREE.PlaneGeometry(screenW, screenH));
+  const screenGeo = track(bendGeometry(new THREE.PlaneGeometry(screenW, screenH, 24, 1)));
   const screenMesh = new THREE.Mesh(screenGeo, screenMat);
-  screenMesh.position.set(0, (bezelBottom - bezelT) / 2, monD / 2 + 0.003);
+  screenMesh.position.set(0, (bezelBottom - bezelT) / 2, monD / 2 + 0.004);
   monGroup.add(screenMesh);
 
   monitorAssembly.add(monGroup);

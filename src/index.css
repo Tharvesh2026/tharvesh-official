@@ -7,20 +7,19 @@
     --font-mono: "JetBrains Mono", ui-monospace, monospace;
   }
 
-  html,
-  body {
-    background-color: #050611;
+  html {
+    background-color: #03040c;
     color: #f8f7ff;
     font-family: var(--font-sans);
     overflow-x: hidden;
+    scroll-behavior: auto;
   }
 
-  @media (min-width: 1024px) and (min-height: 700px) {
-    html,
-    body {
-      height: 100%;
-      overflow: hidden;
-    }
+  body {
+    background-color: #03040c;
+    color: #f8f7ff;
+    overflow-x: hidden;
+    min-height: 100vh;
   }
 }
 
@@ -28,14 +27,23 @@
   font-family: var(--font-display);
 }
 
-.font-sans-body {
-  font-family: var(--font-sans);
+.font-mono-tech {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
-@keyframes heroReveal {
+/* Custom cursor enabled only when fine pointer is active */
+@media (hover: hover) and (pointer: fine) {
+  .custom-cursor-active,
+  .custom-cursor-active * {
+    cursor: none !important;
+  }
+}
+
+@keyframes fadeSlideUp {
   from {
     opacity: 0;
-    transform: translate3d(0, 14px, 0);
+    transform: translate3d(0, 18px, 0);
   }
   to {
     opacity: 1;
@@ -43,28 +51,12 @@
   }
 }
 
-@keyframes badgeReveal {
-  from {
-    opacity: 0;
-    transform: translate3d(12px, 0, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-.animate-hero-reveal {
-  animation: heroReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.animate-badge-reveal {
-  animation: badgeReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+.animate-reveal-up {
+  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-hero-reveal,
-  .animate-badge-reveal {
+  .animate-reveal-up {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

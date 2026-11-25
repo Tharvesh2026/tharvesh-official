@@ -2,12 +2,12 @@ import * as THREE from 'three';
 
 export interface StarfieldRig {
   group: THREE.Group;
-  update: (elapsed: number, reducedMotion: boolean) => void;
+  update: (elapsed: number, scrollVelocity: number, reducedMotion: boolean) => void;
   setPixelRatio: (pixelRatio: number) => void;
   dispose: () => void;
 }
 
-export function createStarfield(starCount = 1100): StarfieldRig {
+export function createStarfield(starCount = 1500): StarfieldRig {
   const group = new THREE.Group();
 
   const positions = new Float32Array(starCount * 3);
@@ -17,42 +17,37 @@ export function createStarfield(starCount = 1100): StarfieldRig {
   const speeds = new Float32Array(starCount);
 
   const palette = [
-    new THREE.Color('#ffffff'), // pure crisp white
-    new THREE.Color('#f4e8ff'), // pale lavender white
-    new THREE.Color('#e879f9'), // soft pink-magenta
-    new THREE.Color('#c084fc'), // glowing violet
-    new THREE.Color('#f9a8d4'), // rose pink
-    new THREE.Color('#a5b4fc'), // cool cosmic periwinkle
+    new THREE.Color('#ffffff'),
+    new THREE.Color('#ede9fe'),
+    new THREE.Color('#c084fc'),
+    new THREE.Color('#e879f9'),
+    new THREE.Color('#67e8f9'),
+    new THREE.Color('#a5b4fc'),
   ];
 
+  // Spread across the entire 3D journey corridor (z = +24 down to z = -42)
   for (let i = 0; i < starCount; i++) {
-    // Spread across wide cosmic dome behind & around workstation
-    const spreadX = (Math.random() - 0.5) * 38;
-    const spreadY = (Math.random() - 0.42) * 24;
-    const depthZ = -4 - Math.random() * 26;
-
-    positions[i * 3] = spreadX;
-    positions[i * 3 + 1] = spreadY;
-    positions[i * 3 + 2] = depthZ;
+    positions[i * 3] = (Math.random() - 0.5) * 44;
+    positions[i * 3 + 1] = (Math.random() - 0.45) * 26;
+    positions[i * 3 + 2] = 24 - Math.random() * 68;
 
     const r = Math.random();
     let col: THREE.Color;
-    if (r < 0.48) col = palette[0];
-    else if (r < 0.65) col = palette[1];
+    if (r < 0.46) col = palette[0];
+    else if (r < 0.64) col = palette[1];
     else if (r < 0.78) col = palette[2];
-    else if (r < 0.89) col = palette[3];
-    else if (r < 0.96) col = palette[4];
+    else if (r < 0.87) col = palette[3];
+    else if (r < 0.94) col = palette[4];
     else col = palette[5];
 
     colors[i * 3] = col.r;
     colors[i * 3 + 1] = col.g;
     colors[i * 3 + 2] = col.b;
 
-    // Mostly tiny stars with a few brighter focal particles
-    const isBright = Math.random() > 0.93;
-    sizes[i] = isBright ? 4.2 + Math.random() * 3.4 : 1.3 + Math.random() * 2.1;
+    const isAccent = Math.random() > 0.92;
+    sizes[i] = isAccent ? 3.8 + Math.random() * 3.0 : 1.1 + Math.random() * 1.9;
     phases[i] = Math.random() * Math.PI * 2;
-    speeds[i] = 0.6 + Math.random() * 1.9;
+    speeds[i] = 0.65 + Math.random() * 1.75;
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -66,6 +61,7 @@ export function createStarfield(starCount = 1100): StarfieldRig {
     uniforms: {
       uTime: { value: 0 },
       uPixelRatio: { value: Math.min(window.devicePixelRatio || 1, 2) },
+      uVelocity: { value: 0 },
     },
     vertexShader: /* glsl */ `
       attribute vec3 aColor;
@@ -75,6 +71,7 @@ export function createStarfield(starCount = 1100): StarfieldRig {
 
       uniform float uTime;
       uniform float uPixelRatio;
+      uniform float uVelocity;
 
       varying vec3 vColor;
       varying float vAlpha;
@@ -83,17 +80,18 @@ export function createStarfield(starCount = 1100): StarfieldRig {
         vColor = aColor;
 
         vec3 pos = position;
-        // Subtle cosmic drift
-        pos.x += sin(uTime * 0.08 * aSpeed + aPhase) * 0.14;
-        pos.y += cos(uTime * 0.06 * aSpeed + aPhase * 1.3) * 0.10;
+        pos.x += sin(uTime * 0.08 * aSpeed + aPhase) * 0.16;
+        pos.y += cos(uTime * 0.06 * aSpeed + aPhase * 1.3) * 0.12;
+        pos.z += uVelocity * 0.35;
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
         gl_Position = projectionMatrix * mvPosition;
 
-        float twinkle = 0.55 + 0.45 * sin(uTime * aSpeed + aPhase);
+        float twinkle = 0.52 + 0.48 * sin(uTime * aSpeed + aPhase);
         vAlpha = twinkle;
 
-        gl_PointSize = aSize * uPixelRatio * (16.0 / max(-mvPosition.z, 1.0)) * (0.85 + 0.25 * twinkle);
+        float dist = max(-mvPosition.z, 1.0);
+        gl_PointSize = aSize * uPixelRatio * (18.0 / dist) * (0.85 + 0.25 * twinkle);
       }
     `,
     fragmentShader: /* glsl */ `
@@ -105,9 +103,8 @@ export function createStarfield(starCount = 1100): StarfieldRig {
         float d = length(uv);
         if (d > 0.5) discard;
 
-        // Soft glowing core with smooth falloff
-        float core = smoothstep(0.5, 0.04, d);
-        float glow = pow(core, 2.2);
+        float core = smoothstep(0.5, 0.03, d);
+        float glow = pow(core, 2.25);
         gl_FragColor = vec4(vColor, glow * vAlpha);
       }
     `,
@@ -120,56 +117,18 @@ export function createStarfield(starCount = 1100): StarfieldRig {
   stars.frustumCulled = false;
   group.add(stars);
 
-  // Foreground floating ambient dust motes around workstation
-  const moteCount = 48;
-  const motePos = new Float32Array(moteCount * 3);
-  const moteCol = new Float32Array(moteCount * 3);
-  const moteSize = new Float32Array(moteCount);
-  const motePhase = new Float32Array(moteCount);
-  const moteSpeed = new Float32Array(moteCount);
-
-  for (let i = 0; i < moteCount; i++) {
-    motePos[i * 3] = (Math.random() - 0.5) * 6.5;
-    motePos[i * 3 + 1] = -0.3 + Math.random() * 2.6;
-    motePos[i * 3 + 2] = -1.6 + Math.random() * 3.4;
-
-    const c = Math.random() > 0.45 ? palette[3] : palette[2];
-    moteCol[i * 3] = c.r;
-    moteCol[i * 3 + 1] = c.g;
-    moteCol[i * 3 + 2] = c.b;
-    moteSize[i] = 2.0 + Math.random() * 2.2;
-    motePhase[i] = Math.random() * Math.PI * 2;
-    moteSpeed[i] = 0.5 + Math.random() * 0.9;
-  }
-
-  const moteGeo = new THREE.BufferGeometry();
-  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
-  moteGeo.setAttribute('aColor', new THREE.BufferAttribute(moteCol, 3));
-  moteGeo.setAttribute('aSize', new THREE.BufferAttribute(moteSize, 1));
-  moteGeo.setAttribute('aPhase', new THREE.BufferAttribute(motePhase, 1));
-  moteGeo.setAttribute('aSpeed', new THREE.BufferAttribute(moteSpeed, 1));
-
-  const moteMat = material.clone();
-  const motes = new THREE.Points(moteGeo, moteMat);
-  motes.frustumCulled = false;
-  group.add(motes);
-
   return {
     group,
-    update(elapsed: number, reducedMotion: boolean) {
-      const t = reducedMotion ? 0 : elapsed;
-      material.uniforms.uTime.value = t;
-      moteMat.uniforms.uTime.value = t * 1.15;
+    update(elapsed: number, scrollVelocity: number, reducedMotion: boolean) {
+      material.uniforms.uTime.value = reducedMotion ? 0 : elapsed;
+      material.uniforms.uVelocity.value = reducedMotion ? 0 : scrollVelocity;
     },
     setPixelRatio(pixelRatio: number) {
       material.uniforms.uPixelRatio.value = pixelRatio;
-      moteMat.uniforms.uPixelRatio.value = pixelRatio;
     },
     dispose() {
       geometry.dispose();
       material.dispose();
-      moteGeo.dispose();
-      moteMat.dispose();
     },
   };
 }
