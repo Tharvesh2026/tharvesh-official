@@ -713,10 +713,18 @@ export function createWorkstation(
   kbCase.receiveShadow = true;
   kbGroup.add(kbCase);
 
-  // Glowing RGB diffuser rim under keycaps
-  const kbDiffuserGeo = track(new THREE.BoxGeometry(kbW - 0.03, 0.01, kbD - 0.03));
-  const kbDiffuser = new THREE.Mesh(kbDiffuserGeo, rgbPurpleMat);
-  kbDiffuser.position.y = kbH + 0.002;
+  // Subtle RGB diffuser plate under keycaps (kept soft so it doesn't over-bloom)
+  const kbDiffuserGeo = track(new THREE.BoxGeometry(kbW - 0.035, 0.008, kbD - 0.035));
+  const kbDiffuserMat = track(
+    new THREE.MeshStandardMaterial({
+      color: 0x6b21a8,
+      emissive: 0x6b21a8,
+      emissiveIntensity: 0.42,
+      roughness: 0.35,
+    })
+  );
+  const kbDiffuser = new THREE.Mesh(kbDiffuserGeo, kbDiffuserMat);
+  kbDiffuser.position.y = kbH + 0.001;
   kbGroup.add(kbDiffuser);
 
   // Instanced Keycaps (5 rows × 14 cols ≈ 66 keys)
@@ -724,10 +732,10 @@ export function createWorkstation(
   const keycapMat = track(
     new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.38,
-      metalness: 0.12,
-      emissive: 0x3b1e6d,
-      emissiveIntensity: 0.55,
+      roughness: 0.44,
+      metalness: 0.1,
+      emissive: 0x241242,
+      emissiveIntensity: 0.18,
     })
   );
 
@@ -778,9 +786,9 @@ export function createWorkstation(
     dummy.updateMatrix();
     keyInstanced.setMatrixAt(idx, dummy.matrix);
 
-    // Initial vibrant purple-magenta-cyan gradient across keys
+    // Initial subtle purple-magenta-cyan gradient across keys
     const hue = 0.72 + spec.phase * 0.24;
-    _keyColor.setHSL(hue % 1, 0.85, 0.62);
+    _keyColor.setHSL(hue % 1, 0.72, 0.46);
     keyInstanced.setColorAt(idx, _keyColor);
   });
   keyInstanced.instanceMatrix.needsUpdate = true;
@@ -1014,13 +1022,16 @@ export function createWorkstation(
         monitorHandle.updateCursor(cursorVisible);
       }
 
+      // Gentle diffuser sync at low intensity
+      kbDiffuserMat.emissive.copy(rgbPurpleMat.emissive);
+
       // 5. Smooth keyboard RGB wave (~24fps update to save GPU upload overhead)
       keyRgbTimer += delta;
       if (keyRgbTimer >= 0.042 && keyInstanced.instanceColor) {
         keyRgbTimer = 0;
         for (let i = 0; i < keySpecs.length; i++) {
           const hue = (0.72 + keySpecs[i].phase * 0.28 + elapsed * 0.06) % 1;
-          _keyColor.setHSL(hue, 0.88, 0.6);
+          _keyColor.setHSL(hue, 0.72, 0.46);
           keyInstanced.setColorAt(i, _keyColor);
         }
         keyInstanced.instanceColor.needsUpdate = true;
