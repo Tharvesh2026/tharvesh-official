@@ -92,11 +92,11 @@ export const MinimalHud: React.FC<MinimalHudProps> = ({
       <div
         aria-hidden="true"
         className={`pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-30 transition-opacity duration-500 ${
-          scrollProgress > 0.06 ? 'opacity-0' : 'opacity-100'
+          scrollProgress > 0.05 && scrollProgress < 0.95 ? 'opacity-0' : 'opacity-100'
         }`}
       >
         <span className="font-mono-tech text-[10.5px] tracking-[0.22em] uppercase text-white/55 whitespace-nowrap">
-          Scroll to enter universe ↓
+          Scroll infinitely to explore ↓
         </span>
       </div>
 

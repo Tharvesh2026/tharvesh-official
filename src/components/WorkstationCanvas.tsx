@@ -1,5 +1,4 @@
 import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -15,8 +14,6 @@ import { createStarfield } from '../three/starfieldBuilder';
 import { createUniverseEnvironment } from '../three/universeBuilder';
 import { createWorkstation } from '../three/workstationBuilder';
 
-gsap.registerPlugin(ScrollTrigger);
-
 export interface HoveredCrystalInfo {
   link: SocialLinkItem;
   screenX: number;
@@ -24,8 +21,9 @@ export interface HoveredCrystalInfo {
 }
 
 interface WorkstationCanvasProps {
+  scrollProgressRef: React.MutableRefObject<number>;
+  scrollVelocityRef: React.MutableRefObject<number>;
   onLoadProgress?: (progress: number, ready: boolean) => void;
-  onScrollUpdate?: (sectionIndex: number, progress: number) => void;
   onHoverCrystal?: (info: HoveredCrystalInfo | null) => void;
 }
 
@@ -62,15 +60,16 @@ const _projVec = new THREE.Vector3();
 const _lookTarget = new THREE.Vector3();
 
 export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
+  scrollProgressRef,
+  scrollVelocityRef,
   onLoadProgress,
-  onScrollUpdate,
   onHoverCrystal,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [contextLost, setContextLost] = useState(false);
 
-  const callbacksRef = useRef({ onLoadProgress, onScrollUpdate, onHoverCrystal });
-  callbacksRef.current = { onLoadProgress, onScrollUpdate, onHoverCrystal };
+  const callbacksRef = useRef({ onLoadProgress, onHoverCrystal });
+  callbacksRef.current = { onLoadProgress, onHoverCrystal };
 
   useEffect(() => {
     const container = mountRef.current;
@@ -204,7 +203,7 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
 
       bloomPass = new UnrealBloomPass(
         new THREE.Vector2(width, height),
-        0.5, // subtle luminous bloom
+        0.5,
         0.46,
         0.74
       );
@@ -221,16 +220,20 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
       renderer.compile(scene, camera);
     }
 
-    // 7. GSAP ScrollTrigger Camera Choreography
-    const camRig = {
+    // 7. Closed-Loop GSAP Camera Choreography (0.00 -> 0.25 -> 0.50 -> 0.75 -> 1.00 == 0.00)
+    const introState = {
       px: 0,
-      py: 1.9,
-      pz: 19.5,
+      py: 1.35,
+      pz: 13.7,
       lx: 0,
-      ly: 0.6,
-      lz: 6.0,
-      keyIntensity: 1.35,
-      introOffsetZ: 5.8,
+      ly: 0.65,
+      lz: 2.0,
+      keyIntensity: 1.4,
+    };
+
+    const camRig = {
+      ...introState,
+      introOffsetZ: prefersReducedMotion ? 0 : 5.8,
     };
 
     const zWorkspace = isMobile ? 6.2 : 4.55;
@@ -245,73 +248,87 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
           duration: 2.0,
           ease: 'power3.out',
         });
-    if (prefersReducedMotion) {
-      camRig.introOffsetZ = 0;
-    }
 
-    // Main scrubbed camera journey across the 4 experiences
-    const scrollTimeline = gsap.timeline({
-      scrollTrigger: {
-        trigger: '#universe-scroll-track',
-        start: 'top top',
-        end: 'bottom bottom',
-        scrub: prefersReducedMotion ? false : 1.15,
-        onUpdate: (self) => {
-          const p = self.progress;
-          const idx = p < 0.22 ? 0 : p < 0.56 ? 1 : p < 0.84 ? 2 : 3;
-          callbacksRef.current.onScrollUpdate?.(idx, p);
-        },
+    // Closed-loop timeline paused and scrubbed via shortest-path wrapped Lenis progress
+    const loopTimeline = gsap.timeline({ paused: true });
+
+    // t=0.00 (Intro) -> t=1.00 (Workspace) [progress 0.00 -> 0.25]
+    loopTimeline.set(camRig, introState, 0);
+    loopTimeline.to(
+      camRig,
+      {
+        px: isMobile ? 0.15 : 0.68,
+        py: isMobile ? 1.48 : 1.28,
+        pz: zWorkspace,
+        lx: isMobile ? 0 : -0.1,
+        ly: 0.22,
+        lz: -0.22,
+        keyIntensity: 2.25,
+        duration: 1,
+        ease: 'power2.inOut',
       },
-    });
+      0
+    );
 
-    // Keyframe 1 -> 2: Intro (z=13.7) glides through portal into Workstation (z=4.55)
-    scrollTimeline.set(camRig, {
-      px: 0,
-      py: 1.35,
-      pz: 13.7,
-      lx: 0,
-      ly: 0.65,
-      lz: 2.0,
-      keyIntensity: 1.4,
-    });
+    // t=1.00 (Workspace) -> t=2.00 (Connect Crystals) [progress 0.25 -> 0.50]
+    loopTimeline.to(
+      camRig,
+      {
+        px: 0,
+        py: 0.45,
+        pz: zConnect,
+        lx: 0,
+        ly: 0.15,
+        lz: -13.6,
+        keyIntensity: 1.65,
+        duration: 1,
+        ease: 'power2.inOut',
+      },
+      1
+    );
 
-    scrollTimeline.to(camRig, {
-      px: isMobile ? 0.15 : 0.68,
-      py: isMobile ? 1.48 : 1.28,
-      pz: zWorkspace,
-      lx: isMobile ? 0 : -0.1,
-      ly: 0.22,
-      lz: -0.22,
-      keyIntensity: 2.25,
-      duration: 1,
-      ease: 'power2.inOut',
-    });
+    // t=2.00 (Connect) -> t=3.00 (Contact Singularity) [progress 0.50 -> 0.75]
+    loopTimeline.to(
+      camRig,
+      {
+        px: 0,
+        py: 0.28,
+        pz: zContact,
+        lx: 0,
+        ly: 0.15,
+        lz: -26.5,
+        keyIntensity: 1.85,
+        duration: 1,
+        ease: 'power2.inOut',
+      },
+      2
+    );
 
-    // Keyframe 2 -> 3: Rise smoothly over desk toward 14 Floating Crystal Badges (z=-7.1)
-    scrollTimeline.to(camRig, {
-      px: 0,
-      py: 0.45,
-      pz: zConnect,
-      lx: 0,
-      ly: 0.15,
-      lz: -13.6,
-      keyIntensity: 1.65,
-      duration: 1,
-      ease: 'power2.inOut',
-    });
-
-    // Keyframe 3 -> 4: Glide into Final Singularity Core Contact Chamber (z=-20.5)
-    scrollTimeline.to(camRig, {
-      px: 0,
-      py: 0.28,
-      pz: zContact,
-      lx: 0,
-      ly: 0.15,
-      lz: -26.5,
-      keyIntensity: 1.85,
-      duration: 1,
-      ease: 'power2.inOut',
-    });
+    // t=3.00 (Contact) -> t=3.50 (Aerial Cosmic Flyover) -> t=4.00 (Seamless return to Intro) [progress 0.75 -> 1.00]
+    loopTimeline.to(
+      camRig,
+      {
+        px: isMobile ? -5.8 : -8.6,
+        py: isMobile ? 4.8 : 5.2,
+        pz: -4.0,
+        lx: 0,
+        ly: 0.2,
+        lz: -2.0,
+        keyIntensity: 1.55,
+        duration: 0.5,
+        ease: 'sine.inOut',
+      },
+      3
+    );
+    loopTimeline.to(
+      camRig,
+      {
+        ...introState,
+        duration: 0.5,
+        ease: 'sine.inOut',
+      },
+      3.5
+    );
 
     // 8. Raycasting & Pointer Parallax State
     const pointerNdc = new THREE.Vector2(0, 0);
@@ -334,7 +351,6 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
         targetParY = THREE.MathUtils.clamp(ny, -1, 1);
       }
 
-      // Throttle raycasting slightly for smooth frame pacing
       const now = performance.now();
       if (now - lastRaycastTime < 28) return;
       lastRaycastTime = now;
@@ -404,23 +420,21 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
       if (bloomPass) {
         bloomPass.resolution.set(newW, newH);
       }
-      ScrollTrigger.refresh();
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
-    // Signal scene ready cleanly after initial frame setup
     const readyTimer = window.setTimeout(() => {
       callbacksRef.current.onLoadProgress?.(100, true);
     }, 550);
 
-    // 10. Render Loop
+    // 10. Render Loop with Circular Progress Wrapping
     const clock = new THREE.Clock();
     let frameId = 0;
     let disposed = false;
-    let lastCamZ = camRig.pz;
+    let smoothProgress = scrollProgressRef.current;
     let smoothVelocity = 0;
 
     function afterDraw(cb: () => void) {
@@ -453,11 +467,21 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
       const delta = Math.min(clock.getDelta(), 0.1);
       const elapsed = clock.getElapsedTime();
 
-      // Scroll velocity calculation for subtle chromatic aberration & star warp
-      const dz = camRig.pz - lastCamZ;
-      lastCamZ = camRig.pz;
-      const instantVel = THREE.MathUtils.clamp(dz / Math.max(delta, 0.008), -12, 12);
-      smoothVelocity = THREE.MathUtils.damp(smoothVelocity, instantVel, 6, delta);
+      // Circular shortest-path progress interpolation so 1.0 <-> 0.0 never rewinds
+      const targetProgress = ((scrollProgressRef.current % 1) + 1) % 1;
+      if (prefersReducedMotion) {
+        smoothProgress = targetProgress;
+      } else {
+        let diff = targetProgress - smoothProgress;
+        if (diff > 0.5) diff -= 1;
+        if (diff < -0.5) diff += 1;
+        const alpha = 1 - Math.exp(-10 * delta);
+        smoothProgress = (((smoothProgress + diff * alpha) % 1) + 1) % 1;
+      }
+      loopTimeline.progress(smoothProgress);
+
+      const rawVel = THREE.MathUtils.clamp(scrollVelocityRef.current * 0.12, -10, 10);
+      smoothVelocity = THREE.MathUtils.damp(smoothVelocity, rawVel, 7, delta);
 
       // Mouse parallax damping
       if (prefersReducedMotion) {
@@ -468,7 +492,6 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
         smoothParY = THREE.MathUtils.damp(smoothParY, targetParY, 4.2, delta);
       }
 
-      // Apply camera position + intro offset + subtle parallax
       camera.position.set(
         camRig.px + smoothParX * 0.42,
         camRig.py + smoothParY * 0.24,
@@ -479,14 +502,11 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
 
       keyLight.intensity = camRig.keyIntensity;
 
-      const scrollProgress = scrollTimeline.progress();
-
       // Update 3D world modules
       starfield.update(elapsed, smoothVelocity, prefersReducedMotion);
-      universe.update(elapsed, delta, scrollProgress, hoveredCrystalIdx, pointerNdc, prefersReducedMotion);
+      universe.update(elapsed, delta, smoothProgress, hoveredCrystalIdx, pointerNdc, prefersReducedMotion);
       workstation.update(elapsed, delta, prefersReducedMotion);
 
-      // Update hovered crystal projected coordinates while moving
       if (hoveredCrystalIdx !== null) {
         const badge = universe.crystalBadges[hoveredCrystalIdx];
         if (badge) {
@@ -502,7 +522,7 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
       }
 
       if (chromaPass && !prefersReducedMotion) {
-        chromaPass.uniforms.uAmount.value = 0.0008 + Math.min(Math.abs(smoothVelocity) * 0.00025, 0.0022);
+        chromaPass.uniforms.uAmount.value = 0.0008 + Math.min(Math.abs(smoothVelocity) * 0.00028, 0.0024);
       }
 
       if (composer && !isSoftwareGl) {
@@ -527,8 +547,7 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
       clearTimeout(readyTimer);
 
       introTween?.kill();
-      scrollTimeline.scrollTrigger?.kill();
-      scrollTimeline.kill();
+      loopTimeline.kill();
 
       reducedMotionQuery.removeEventListener('change', onMotionChange);
       window.removeEventListener('pointermove', handlePointerMove);
@@ -550,7 +569,7 @@ export const WorkstationCanvas: React.FC<WorkstationCanvasProps> = ({
         container.removeChild(renderer.domElement);
       }
     };
-  }, []);
+  }, [scrollProgressRef, scrollVelocityRef]);
 
   return (
     <div className="relative w-full h-full">

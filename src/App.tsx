@@ -1,5 +1,4 @@
 import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { ArrowUpRight, Check, Copy, Mail } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -11,7 +10,44 @@ import { FacetedBadge } from './components/SocialIcons';
 import { WorkstationCanvas, type HoveredCrystalInfo } from './components/WorkstationCanvas';
 import { SOCIAL_LINKS } from './data/socialLinks';
 
-gsap.registerPlugin(ScrollTrigger);
+function IntroHeroContent({ sceneReady, isClone = false }: { sceneReady: boolean; isClone?: boolean }) {
+  const HeadingTag = isClone ? 'div' : 'h1';
+
+  return (
+    <div
+      className={`max-w-4xl transition-all duration-700 ${
+        sceneReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      }`}
+    >
+      <p className="font-mono-tech text-[11px] tracking-[0.24em] uppercase text-purple-300/85">
+        01 · Enter My World
+      </p>
+
+      <HeadingTag className="mt-4 font-display font-bold tracking-[-0.03em] leading-[1.06] text-[clamp(2rem,5.2vw,4.35rem)] uppercase">
+        <span className="text-white">Hi, I&apos;m </span>
+        <span className="text-[#a855f7] drop-shadow-[0_0_28px_rgba(168,85,247,0.4)]">
+          Tharvesh Muhaideen A
+        </span>
+      </HeadingTag>
+
+      <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono-tech text-[11.5px] sm:text-[12.5px] tracking-[0.18em] uppercase text-[#c4b5fd]">
+        <span>Undergraduate ECE Student</span>
+        <span className="text-purple-400/50" aria-hidden="true">
+          /
+        </span>
+        <span>Software Engineer</span>
+        <span className="text-purple-400/50" aria-hidden="true">
+          /
+        </span>
+        <span>Digital Creator</span>
+      </div>
+
+      <p className="mt-5 max-w-xl text-[15px] sm:text-[17px] leading-[1.65] text-[#e2dcf8]/90">
+        I love building digital experiences, exploring technology, and turning sparking ideas into reality.
+      </p>
+    </div>
+  );
+}
 
 export default function App() {
   const [loadProgress, setLoadProgress] = useState(10);
@@ -23,26 +59,48 @@ export default function App() {
   const [copiedEmail, setCopiedEmail] = useState(false);
 
   const lenisRef = useRef<Lenis | null>(null);
+  const scrollProgressRef = useRef(0);
+  const scrollVelocityRef = useRef(0);
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reducedMotion) return;
 
     const lenis = new Lenis({
-      duration: 1.25,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true,
+      duration: 1.2,
+      lerp: reducedMotion ? 1 : 0.085,
+      smoothWheel: !reducedMotion,
+      syncTouch: !reducedMotion,
+      infinite: true,
+      respectReducedMotion: true,
     });
     lenisRef.current = lenis;
 
-    lenis.on('scroll', ScrollTrigger.update);
+    let lastUiProgress = -1;
+    let lastSection = -1;
+
+    lenis.on('scroll', (instance: Lenis) => {
+      const p = ((instance.progress % 1) + 1) % 1;
+      scrollProgressRef.current = p;
+      scrollVelocityRef.current = instance.velocity;
+
+      // Map 4 chapters evenly across [0, 1), treating the final flyback seam [0.88..1.0) as transitioning back into 01 Intro
+      const idx = p < 0.14 || p >= 0.88 ? 0 : p < 0.39 ? 1 : p < 0.64 ? 2 : 3;
+
+      if (idx !== lastSection) {
+        lastSection = idx;
+        setActiveSection(idx);
+      }
+      if (Math.abs(p - lastUiProgress) > 0.004) {
+        lastUiProgress = p;
+        setScrollProgress(p);
+      }
+    });
 
     const tick = (time: number) => {
       lenis.raf(time * 1000);
     };
     gsap.ticker.add(tick);
     gsap.ticker.lagSmoothing(0);
-    ScrollTrigger.refresh();
 
     return () => {
       gsap.ticker.remove(tick);
@@ -64,11 +122,6 @@ export default function App() {
     }
   }, []);
 
-  const handleScrollUpdate = useCallback((sectionIndex: number, progress: number) => {
-    setActiveSection(sectionIndex);
-    setScrollProgress(progress);
-  }, []);
-
   const handleToggleSound = useCallback(() => {
     const active = cosmicAudio.toggle();
     setSoundEnabled(active);
@@ -78,7 +131,8 @@ export default function App() {
     const el = document.getElementById(sectionId);
     if (!el) return;
     if (lenisRef.current) {
-      lenisRef.current.scrollTo(el, { duration: 1.35 });
+      const targetY = el.getBoundingClientRect().top + lenisRef.current.scroll;
+      lenisRef.current.scrollTo(targetY, { duration: 1.35 });
     } else {
       el.scrollIntoView({ behavior: 'smooth' });
     }
@@ -101,8 +155,9 @@ export default function App() {
       {/* Fixed Real-Time Three.js 3D Universe */}
       <div className="fixed inset-0 z-0">
         <WorkstationCanvas
+          scrollProgressRef={scrollProgressRef}
+          scrollVelocityRef={scrollVelocityRef}
           onLoadProgress={handleLoadProgress}
-          onScrollUpdate={handleScrollUpdate}
           onHoverCrystal={setHoveredCrystal}
         />
       </div>
@@ -117,7 +172,7 @@ export default function App() {
         hoveredCrystal={hoveredCrystal}
       />
 
-      {/* Continuous Scroll Choreography Track */}
+      {/* Continuous Infinite Loop Track */}
       <main id="universe-scroll-track" className="relative z-10 pointer-events-none">
         {/* ================================================================
             EXPERIENCE 01 — INTRO / ENTER MY WORLD
@@ -125,40 +180,9 @@ export default function App() {
         <section
           id="intro"
           aria-label="Introduction"
-          className="relative min-h-screen flex flex-col justify-end sm:justify-center px-6 pb-20 pt-24 sm:px-10 lg:px-16"
+          className="relative h-screen flex flex-col justify-end sm:justify-center px-6 pb-20 pt-24 sm:px-10 lg:px-16"
         >
-          <div
-            className={`max-w-4xl transition-all duration-700 ${
-              sceneReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-            }`}
-          >
-            <p className="font-mono-tech text-[11px] tracking-[0.24em] uppercase text-purple-300/85">
-              01 · Enter My World
-            </p>
-
-            <h1 className="mt-4 font-display font-bold tracking-[-0.03em] leading-[1.06] text-[clamp(2rem,5.2vw,4.35rem)] uppercase">
-              <span className="text-white">Hi, I&apos;m </span>
-              <span className="text-[#a855f7] drop-shadow-[0_0_28px_rgba(168,85,247,0.4)]">
-                Tharvesh Muhaideen A
-              </span>
-            </h1>
-
-            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono-tech text-[11.5px] sm:text-[12.5px] tracking-[0.18em] uppercase text-[#c4b5fd]">
-              <span>Undergraduate ECE Student</span>
-              <span className="text-purple-400/50" aria-hidden="true">
-                /
-              </span>
-              <span>Software Engineer</span>
-              <span className="text-purple-400/50" aria-hidden="true">
-                /
-              </span>
-              <span>Digital Creator</span>
-            </div>
-
-            <p className="mt-5 max-w-xl text-[15px] sm:text-[17px] leading-[1.65] text-[#e2dcf8]/90">
-              I love building digital experiences, exploring technology, and turning sparking ideas into reality.
-            </p>
-          </div>
+          <IntroHeroContent sceneReady={sceneReady} />
         </section>
 
         {/* ================================================================
@@ -167,7 +191,7 @@ export default function App() {
         <section
           id="workspace"
           aria-label="Developer Workspace"
-          className="relative min-h-screen flex flex-col justify-between px-6 pt-24 pb-16 sm:px-10 lg:px-16"
+          className="relative h-screen flex flex-col justify-between px-6 pt-24 pb-16 sm:px-10 lg:px-16"
         >
           <div className="max-w-md pointer-events-auto">
             <p className="font-mono-tech text-[11px] tracking-[0.24em] uppercase text-cyan-300/85">
@@ -194,16 +218,16 @@ export default function App() {
         <section
           id="connect"
           aria-label="Connect With Me"
-          className="relative min-h-[125vh] flex flex-col justify-between px-6 pt-24 pb-12 sm:px-10 lg:px-16"
+          className="relative min-h-screen flex flex-col justify-between px-6 pt-20 pb-10 sm:px-10 lg:px-16"
         >
           <div className="max-w-lg">
             <p className="font-mono-tech text-[11px] tracking-[0.24em] uppercase text-purple-300/85">
               03 · Connect With Me
             </p>
-            <h2 className="mt-3 font-display text-2xl sm:text-4xl font-bold tracking-[-0.02em] text-white">
+            <h2 className="mt-2.5 font-display text-2xl sm:text-4xl font-bold tracking-[-0.02em] text-white">
               Crystal Constellation
             </h2>
-            <p className="mt-2.5 text-sm sm:text-[15px] leading-relaxed text-[#cfc8eb]/80">
+            <p className="mt-2 text-sm sm:text-[15px] leading-relaxed text-[#cfc8eb]/80">
               Hover and click any floating 3D crystal badge above, or select a destination directly below.
             </p>
           </div>
@@ -211,7 +235,7 @@ export default function App() {
           {/* Compact Transparent Accessible Directory for All 14 Links */}
           <nav
             aria-label="All 14 social and developer profiles"
-            className="pointer-events-auto mt-auto pt-44 sm:pt-56 max-w-6xl w-full mx-auto"
+            className="pointer-events-auto mt-auto pt-36 sm:pt-44 max-w-6xl w-full mx-auto"
           >
             <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7 gap-2.5">
               {SOCIAL_LINKS.map((item) => {
@@ -252,7 +276,7 @@ export default function App() {
         <section
           id="contact"
           aria-label="Contact"
-          className="relative min-h-screen flex flex-col justify-end sm:justify-center px-6 pb-20 pt-28 sm:px-10 lg:px-16"
+          className="relative h-screen flex flex-col justify-end sm:justify-center px-6 pb-20 pt-28 sm:px-10 lg:px-16"
         >
           <div className="max-w-2xl pointer-events-auto">
             <p className="font-mono-tech text-[11px] tracking-[0.24em] uppercase text-cyan-300/85">
@@ -304,6 +328,16 @@ export default function App() {
               <span>ECE Undergraduate · Software Engineer</span>
             </footer>
           </div>
+        </section>
+
+        {/* ================================================================
+            SEAMLESS LOOP SEAM CLONE (matches #intro identically for infinite wrap)
+           ================================================================ */}
+        <section
+          aria-hidden="true"
+          className="relative h-screen flex flex-col justify-end sm:justify-center px-6 pb-20 pt-24 sm:px-10 lg:px-16"
+        >
+          <IntroHeroContent sceneReady={sceneReady} isClone />
         </section>
       </main>
     </div>
