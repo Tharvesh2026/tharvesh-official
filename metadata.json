@@ -1,0 +1,8 @@
+{
+  "name": "Tharvesh Muhaideen A — Interactive 3D Portfolio",
+  "description": "Immersive single-page 3D developer portfolio of Tharvesh Muhaideen A featuring an interactive Three.js workstation, cosmic starfield, and social directory.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
